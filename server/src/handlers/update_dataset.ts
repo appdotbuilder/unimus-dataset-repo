@@ -1,4 +1,7 @@
+import { db } from '../db';
+import { datasetsTable } from '../db/schema';
 import { type UpdateDatasetInput, type Dataset } from '../schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * Updates an existing dataset's metadata and status.
@@ -6,22 +9,43 @@ import { type UpdateDatasetInput, type Dataset } from '../schema';
  * Handles workflow state transitions and validation rules.
  */
 export async function updateDataset(input: UpdateDatasetInput): Promise<Dataset> {
-  // This is a placeholder declaration! Real code should be implemented here.
-  // The goal of this handler is updating dataset information with proper permission
-  // checks and workflow state management.
-  return Promise.resolve({
-    id: input.id,
-    title: input.title || 'Placeholder Title',
-    description: input.description || 'Placeholder Description',
-    domain: input.domain || 'Placeholder Domain',
-    task: input.task || 'Placeholder Task',
-    license: input.license || 'Placeholder License',
-    doi: input.doi || null,
-    access_level: input.access_level || 'public',
-    status: input.status || 'draft',
-    contributor_id: input.contributor_id || 0,
-    publication_year: input.publication_year || new Date().getFullYear(),
-    created_at: new Date(),
-    updated_at: new Date()
-  } as Dataset);
+  try {
+    // First, check if the dataset exists
+    const existingDataset = await db.select()
+      .from(datasetsTable)
+      .where(eq(datasetsTable.id, input.id))
+      .execute();
+
+    if (existingDataset.length === 0) {
+      throw new Error(`Dataset with id ${input.id} not found`);
+    }
+
+    // Build update object with only provided fields
+    const updateData: any = {
+      updated_at: new Date()
+    };
+
+    if (input.title !== undefined) updateData.title = input.title;
+    if (input.description !== undefined) updateData.description = input.description;
+    if (input.domain !== undefined) updateData.domain = input.domain;
+    if (input.task !== undefined) updateData.task = input.task;
+    if (input.license !== undefined) updateData.license = input.license;
+    if (input.doi !== undefined) updateData.doi = input.doi;
+    if (input.access_level !== undefined) updateData.access_level = input.access_level;
+    if (input.status !== undefined) updateData.status = input.status;
+    if (input.contributor_id !== undefined) updateData.contributor_id = input.contributor_id;
+    if (input.publication_year !== undefined) updateData.publication_year = input.publication_year;
+
+    // Perform the update
+    const result = await db.update(datasetsTable)
+      .set(updateData)
+      .where(eq(datasetsTable.id, input.id))
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Dataset update failed:', error);
+    throw error;
+  }
 }

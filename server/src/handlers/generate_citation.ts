@@ -1,3 +1,6 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { type Dataset } from '../schema';
 
 export interface Citation {
@@ -11,11 +14,35 @@ export interface Citation {
  * Follows academic citation standards for datasets.
  */
 export async function generateCitation(dataset: Dataset): Promise<Citation> {
-  // This is a placeholder declaration! Real code should be implemented here.
-  // The goal of this handler is generating properly formatted academic citations
-  // in both APA and IEEE styles for datasets.
-  return Promise.resolve({
-    apa: `Author. (${dataset.publication_year}). ${dataset.title} [Dataset]. ${dataset.doi ? `https://doi.org/${dataset.doi}` : 'Unimus Repository'}`,
-    ieee: `Author, "${dataset.title}," Dataset, ${dataset.publication_year}. ${dataset.doi ? `[Online]. Available: https://doi.org/${dataset.doi}` : '[Database]'}`
-  });
+  try {
+    // Fetch contributor information
+    const contributorResult = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.id, dataset.contributor_id))
+      .execute();
+
+    const contributor = contributorResult[0];
+    
+    // Use contributor name if available, otherwise fallback to email or "Unknown Author"
+    const authorName = contributor?.name || contributor?.email || 'Unknown Author';
+    
+    // Format DOI URL if available
+    const doiUrl = dataset.doi ? `https://doi.org/${dataset.doi}` : null;
+    
+    // Generate APA style citation
+    // Format: Author, A. A. (Year). Title [Dataset]. Publisher/Repository. DOI or URL
+    const apa = `${authorName}. (${dataset.publication_year}). ${dataset.title} [Dataset]. ${doiUrl || 'Unimus Repository'}.`;
+    
+    // Generate IEEE style citation
+    // Format: A. A. Author, "Title," Dataset, Year. [Online]. Available: DOI or URL
+    const ieee = `${authorName}, "${dataset.title}," Dataset, ${dataset.publication_year}.${doiUrl ? ` [Online]. Available: ${doiUrl}` : ' [Database]'}`;
+
+    return {
+      apa,
+      ieee
+    };
+  } catch (error) {
+    console.error('Citation generation failed:', error);
+    throw error;
+  }
 }
